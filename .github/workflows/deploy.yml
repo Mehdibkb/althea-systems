@@ -1,0 +1,27 @@
+name: CI-CD-Althea
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Deploiement SSH sur Azure
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # On va dans le dossier de la VM
+            cd /home/althea-admin/althea-project
+            
+            # On demande à Docker de mettre à jour les images et relancer
+            # Note : On suppose que tu as copié les fichiers sur la VM (voir étape 5)
+            sudo docker compose pull
+            sudo docker compose up -d

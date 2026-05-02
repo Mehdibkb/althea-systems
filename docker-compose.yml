@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik-althea
+    restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"       # Dit à Traefik d'écouter Docker
+      - "--providers.docker.exposedbydefault=true" # Force l'exposition
+      - "--entrypoints.web.address=:80" # Point d'entrée HTTP
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=mehdiboukabou@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/acme.json"
+    labels:
+      - "traefik.http.routers.api.rule=Host(`althea-intra-yann-mehdi.switzerlandnorth.cloudapp.azure.com`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=myresolver"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./acme.json:/acme.json
+    networks:
+      - althea-network
+
+  intranet-web:
+    image: nginx:latest
+    container_name: intranet-althea
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.intranet.rule=Host(`althea-intra-yann-mehdi.switzerlandnorth.cloudapp.azure.com`)"
+      - "traefik.http.routers.intranet.entrypoints=websecure"
+      - "traefik.http.services.intranet.loadbalancer.server.port=80"
+      - "traefik.http.routers.intranet.tls.certresolver=myresolver"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - althea-network
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer-althea
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`althea-intra-yann-mehdi.switzerlandnorth.cloudapp.azure.com`) && PathPrefix(`/portainer`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls.certresolver=myresolver"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+      - "traefik.http.middlewares.portainer-strip.stripprefix.prefixes=/portainer"
+      - "traefik.http.routers.portainer.middlewares=portainer-strip"
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - althea-network
+
+networks:
+  althea-network:
+    driver: bridge
+
+volumes:
+  portainer_data:
